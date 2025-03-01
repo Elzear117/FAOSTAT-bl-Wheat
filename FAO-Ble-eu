@@ -1,0 +1,179 @@
+# FAOSTAT - Evolution des rendement de blé en Europe depuis 1961 jusqu'à 2022
+
+# Auteur : Lionel Elzear
+# données : https://www.fao.org/faostat/fr/#data/QCL
+
+#-------------------------------------------------------------------------------
+# 1. rentrer les données : rendement de blé de 1961 à 2022 
+# 2. calculer le rendement en Qtx (Quintaux)
+# 3. Graphique : Evolution de la production de blé en Europe
+# 4. amélioration du graphique
+# 5. faire un graphique par zone géographique européenne (Nord, Sud, Est, Ouest)
+# 6. graphique interactif 
+#-------------------------------------------------------------------------------
+
+# Charger le package FAOSTAT
+install.packages("FAOSTAT")
+library(FAOSTAT)
+library(data.table)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(ggrepel)
+library(plotly)
+
+#-------------------------------------------------------------------------------
+# 1. rentrer les données : rendement de blé de 1961 à 2022 
+# Lire le fichier CSV en utilisant fread
+FAO <- fread("CHEMIN DU FICHIER -> FAOSTAT-ble-EU.csv", quote = "\"")
+# Afficher les premières lignes du tableau
+head(FAO)
+# Nettoyer les guillemets doubles dans les colonnes nécessaires
+colonnes_a_nettoyer <- c("Code année", "Année", "Valeur")
+FAO[, (colonnes_a_nettoyer) := lapply(.SD, function(x) as.numeric(gsub("\"", "", x))), .SDcols = colonnes_a_nettoyer]
+# Afficher les premières lignes du tableau avec les colonnes converties
+head(FAO)
+# Conserver uniquement les colonnes nécessaires
+FAO2 <- FAO[, .(Zone = Zone, Année = Année, Valeur = Valeur)]
+# Afficher les premières lignes du tableau avec les colonnes sélectionnées
+head(FAO2)
+#-------------------------------------------------------------------------------
+
+# 2. calculer le rendement en Qtx (Quintaux)
+# Diviser la colonne "Valeur" par 1000
+FAO2$qt <- FAO2$Valeur / 1000
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# 3. Graphique : Evolution de la production de blé en Europe
+# 3.1 Transformer la colonne "Zone" en facteur
+FAO2$Zone <- as.factor(FAO2$Zone)
+
+# 3.2 premier graphique 📉 tous les pays européens
+# Créer le graphique avec ggplot2
+graphique <- ggplot(FAO2, aes(x = Année, y = qt, color = Zone)) +
+  geom_line() +
+  labs(title = "Évolution de la production de blé (en quintaux)",
+       x = "Année",
+       y = "Production (quintaux)")
+
+# Afficher le graphique
+print(graphique)
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# 4. amélioration du graphique
+# 4.1 Suppression des guillemets doubles de la colonne "Zone"
+FAO2$Zone <- gsub("\"", "", FAO2$Zone)
+
+# 4.2 Exclure la France et l'Allemagne
+FAO3 <- subset(FAO2, Zone != "Allemagne" & Zone != "France") # grosses productions
+
+
+# 4.3 Créer le graphique avec ggplot2
+graphique <- ggplot(FAO3, aes(x = Année, y = qt, color = Zone)) +
+  geom_line() +
+  labs(title = "Évolution de la production de blé (en quintaux)",
+       x = "Année",
+       y = "Production (quintaux)")
+
+# Afficher le graphique
+print(graphique)
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# 5. faire un graphique par zone géographique européenne (Nord, Sud, Est, Ouest)
+
+# 5.1 regarder les pays présent dans les données
+FAO2$Zone
+# Obtenir une liste unique des pays
+liste_pays <- unique(FAO2$Zone)
+# Afficher la liste complète (attention, elle peut être longue)
+print(liste_pays)
+#-------------------------------------------------------------------------------
+
+# 5.2 A partir des données créer des zones géographiques 
+# Ajouter la colonne Position basée sur la colonne Zone
+FAO2 <- FAO2 %>% mutate(Position = case_when(
+  Zone %in% c("Allemagne", "Autriche", "Belgique", "Belgique-Luxembourg", "France", "Luxembourg", "Pays-Bas (Royaume des)") ~ "Ouest",
+  Zone %in% c("Bulgarie","Hongrie",  "Pologne", "Roumanie", "Slovaquie", "Tchéquie") ~ "Est",
+  Zone %in% c("Danemark","Irlande", "Estonie", "Finlande", "Lettonie", "Lituanie", "Suède") ~ "Nord",
+  Zone %in% c("Espagne","Chypre","Croatie", "Malte","Grèce","Italie", "Portugal", "Slovénie") ~ "Sud",
+  TRUE ~ "Autre"
+))
+#-------------------------------------------------------------------------------
+
+
+#-------------------------------------------------------------------------------
+# 5.3 créer un premier graphique avec les zones géographiques
+# Créer le graphique avec ggplot2 en utilisant la colonne Position
+graphique <- ggplot(FAO2, aes(x = Année, y = qt, color = Zone)) +
+  geom_line() +
+  facet_wrap(~Position) +
+  labs(title = "Évolution de la production de blé (en quintaux) par groupe de pays",
+       x = "Année",
+       y = "Production (quintaux)")
+
+# Afficher le graphique
+print(graphique)
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+## 5.4 créer un deuxième graphique avec les zones géographiques
+# Créer le dataframe pour les noms des pays à afficher
+pays_afficher <- FAO2 %>%
+  group_by(Position, Zone) %>%
+  filter(row_number() == 1) %>%
+  ungroup()
+
+# Créer le graphique avec ggplot2 en utilisant la colonne Position
+graphique <- ggplot(FAO2, aes(x = Année, y = qt, color = Zone, label = Zone)) +
+  geom_line() +
+  geom_text_repel(data = pays_afficher, aes(label = Zone), 
+                  box.padding = 0.5, point.padding = 0.5, hjust = 1) +  # Centrer les noms
+  facet_grid(Position ~ ., scales = "free_y", space = "free_y") +
+  labs(title = "Évolution de la production de blé (en quintaux) par groupe de pays",
+       x = "Année",
+       y = "Production (quintaux)",
+       color = "Zone") +  # Ajouter une légende pour la couleur (Zone)
+  scale_color_discrete() +  # Utiliser une palette de couleurs de base
+  guides(color = FALSE) +  # Supprimer la légende des couleurs
+  theme(legend.position = "none",      # Supprimer la légende
+        strip.text = element_text(size = 8, face = "bold", hjust = 1),  # Centrer le texte des facettes
+        strip.background = element_blank(),  # Supprimer le fond des facettes
+        panel.spacing = unit(2, "lines"))  # Ajuster l'espace entre les facettes
+
+# Afficher le graphique
+print(graphique)
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# 6. graphique interactif 
+# Créer le dataframe pour les noms des pays à afficher
+pays_afficher <- FAO2 %>%
+  group_by(Position, Zone) %>%
+  filter(row_number() == 1) %>%
+  ungroup()
+
+# Créer le graphique interactif avec plotly
+graphique_interactif <- ggplot(FAO2, aes(x = Année, y = qt, color = Zone, label = Zone)) +
+  geom_line() +
+  geom_text_repel(data = pays_afficher, aes(label = Zone), 
+                  box.padding = 0.5, point.padding = 0.5, hjust = 0.5) +  # Centrer les noms
+  facet_grid(Position ~ ., scales = "free_y", space = "free_y") +
+  labs(title = "Évolution de la production de blé (en quintaux) par groupe de pays",
+       x = "Année",
+       y = "Production (quintaux)",
+       color = "Zone") +  # Ajouter une légende pour la couleur (Zone)
+  scale_color_discrete() +  # Utiliser une palette de couleurs de base
+  theme(legend.position = "none",      # Supprimer la légende
+        strip.text = element_text(size = 8, face = "bold", hjust = 0.5),  # Centrer le texte des facettes
+        strip.background = element_blank(),  # Supprimer le fond des facettes
+        panel.spacing = unit(2, "lines"))  # Ajuster l'espace entre les facettes
+
+# Convertir le graphique en plotly
+graphique_interactif_plotly <- ggplotly(graphique_interactif)
+
+# Afficher le graphique interactif
+print(graphique_interactif_plotly)
+# ------------------------------------------------------------------------------
