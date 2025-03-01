@@ -1,0 +1,53 @@
+# FAOSTAT - BLE en France - Evolution des rendements (1961-2022)
+
+# Auteur : Lionel
+# données : https://www.fao.org/faostat/fr/#data/QCL
+
+# Charger le package FAOSTAT
+install.packages("FAOSTAT")
+library(FAOSTAT)
+library(data.table)
+
+# Lire le fichier CSV en utilisant fread
+FAO <- fread("fichier csv : FAO-Ble.csv")
+
+# Afficher les premières lignes du tableau
+head(FAO)
+
+# Nettoyer les guillemets doubles dans les colonnes nécessaires
+colonnes_a_nettoyer <- c("Code-année", "Année", "Valeur")
+
+FAO[, (colonnes_a_nettoyer) := lapply(.SD, function(x) as.numeric(gsub("\"", "", x))), .SDcols = colonnes_a_nettoyer]
+
+# Afficher les premières lignes du tableau avec les colonnes converties
+head(FAO)
+
+# Conserver uniquement les colonnes nécessaires
+FAO2 <- FAO[, .(Année = Année, Valeur = Valeur)]
+
+# Afficher les premières lignes du tableau avec les colonnes sélectionnées
+head(FAO2)
+
+# Diviser la colonne "Valeur" par 1000
+FAO2$qt <- FAO2$Valeur / 1000
+
+# Tracer un graphique simple avec Année sur l'axe des x et Valeur sur l'axe des y
+plot(FAO2$Année, FAO2$qt, 
+     type = "l", 
+     col = "blue", 
+     xlab = "Année", 
+     ylab = "Valeur", 
+     main = "Evolution du rendement en France du blé de 1961 à 2022")
+
+
+# Charger le package ggplot2
+library(ggplot2)
+
+# Tracer un graphique avec ggplot2
+ggplot(FAO2, aes(x = Année, y = qt)) +
+  geom_line(color = "blue") +
+  labs(title = "Evolution du rendement en France du blé de 1961 à 2022",
+       x = "Année",
+       y = "production de blé qtx/ha") +
+  theme_minimal()
+
